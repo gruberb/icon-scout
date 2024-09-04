@@ -1,46 +1,40 @@
-use std::time::Instant;
+use axum::{
+    debug_handler, extract::Json, http::StatusCode, response::IntoResponse, routing::get, Router,
+};
 use futures::future::join_all;
-use tokio::fs;
-use tracing::info;
+use serde::Deserialize;
 use website::process_website;
 
 mod favicon;
-mod website;
 mod utils;
+mod website;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+#[derive(Deserialize)]
+struct WebsiteList(Vec<String>);
 
-    #[cfg(debug_assertions)]
-    let start_time = Instant::now(); // Start the timer only in debug mode
-
-    // Read the JSON file containing the list of websites
-    let data = fs::read_to_string("websites.json").await?;
-    let website_list: website::WebsiteList = serde_json::from_str(&data)?;
-
-    // Create a vector of futures for processing each website
-    let tasks: Vec<_> = website_list.0
+#[debug_handler]
+async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoResponse {
+    let tasks: Vec<_> = website_list
+        .0
         .iter()
-        .map(|website| process_website(website))
+        .map(|website| process_website(website.to_string()))
         .collect();
 
     // Run all tasks concurrently using join_all
-    let results = join_all(tasks).await;
+    let _results = join_all(tasks).await;
 
     // Handle any errors (optional)
-    for result in results {
-        if let Err(e) = result {
-            eprintln!("Error processing website: {}", e);
-        }
-    }
 
-    #[cfg(debug_assertions)]
-    {
-        // Stop the timer and print the duration in debug mode
-        let duration = start_time.elapsed();
-        info!("Time elapsed: {:?}", duration);
-    }
+    "Processed".into_response()
+}
 
-    Ok(())
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
+
+    let app = Router::new().route("/favicons", get(get_favicons));
+
+    // run our app with hyper, listening globally on port 3000
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }

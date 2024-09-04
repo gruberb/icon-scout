@@ -1,3 +1,4 @@
+use axum::{debug_handler, http::StatusCode, response::IntoResponse};
 use reqwest::redirect::Policy;
 use reqwest::Client;
 use scraper::{Html, Selector};
@@ -73,8 +74,8 @@ pub async fn check_for_favicon(icon_url: String) -> Option<Vec<u8>> {
 }
 
 pub async fn fetch_and_parse_favicon(
-    website: &str,
-) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
+    website: String,
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     // Create a client with redirect policy to follow all redirects
     let client = Client::builder()
         .redirect(Policy::limited(10))
@@ -102,14 +103,14 @@ pub async fn fetch_and_parse_favicon(
     let common_favicon_url = final_url.join("/favicon.ico")?;
     info!("Couldn't find it, let's check {common_favicon_url}");
     if let Some(favicon_data) = check_for_favicon(common_favicon_url.to_string()).await {
-        return Ok(Some(favicon_data));
+        return Ok(favicon_data);
     }
     // Parse the favicon URL from the HTML
     if let Some(favicon_url) = parse_favicon_url(&html, final_url.clone()) {
         if let Some(favicon_data) = check_for_favicon(favicon_url.clone()).await {
-            return Ok(Some(favicon_data));
+            return Ok(favicon_data);
         }
     }
 
-    Ok(None)
+    Ok(Vec::default())
 }
