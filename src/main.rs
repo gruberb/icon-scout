@@ -1,5 +1,10 @@
 use axum::{
-    debug_handler, extract::Json, http::StatusCode, response::IntoResponse, routing::get, Router,
+    debug_handler,
+    extract::Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::get,
+    Router,
 };
 use futures::future::join_all;
 use serde::Deserialize;
@@ -21,11 +26,37 @@ async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoRespons
         .collect();
 
     // Run all tasks concurrently using join_all
-    let _results = join_all(tasks).await;
+    let results = join_all(tasks).await;
 
-    // Handle any errors (optional)
+    let mut file_paths = Vec::new();
+    for result in results {
+        if let Ok(path) = result {
+            file_paths.push(path);
+        }
+    }
 
-    "Processed".into_response()
+    let output_zip_path = "favicons.zip";
+    if let Err(_) = utils::compress_files_to_zip(file_paths, output_zip_path) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to create ZIP file",
+        )
+            .into_response();
+    }
+
+    // Return the ZIP file as a response
+    let file = match tokio::fs::read(output_zip_path).await {
+        Ok(contents) => contents,
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read ZIP file").into_response()
+        }
+    };
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/zip")
+        .body(file.into())
+        .unwrap()
 }
 
 #[tokio::main]

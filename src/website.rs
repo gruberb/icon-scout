@@ -1,22 +1,24 @@
-use axum::debug_handler;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use serde::Serialize;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
 use tracing::info;
 
 use crate::favicon::fetch_and_parse_favicon;
 use crate::utils::sanitize_website_filename;
 
-#[derive(serde::Deserialize)]
-pub struct WebsiteList(pub Vec<String>);
+#[derive(Serialize)]
+pub enum FaviconError {
+    NotFound,
+    CannotSave,
+}
 
 fn save_favicon_to_disk(
     website: &str,
     favicon_data: &[u8],
     extension: &str,
-) -> std::io::Result<()> {
+) -> Result<PathBuf, std::io::Error> {
     let folder_path = Path::new("favicons");
     if !folder_path.exists() {
         std::fs::create_dir_all(&folder_path)?;
@@ -24,13 +26,12 @@ fn save_favicon_to_disk(
 
     let filename = format!("{}{}", sanitize_website_filename(website), extension);
     let filepath = folder_path.join(filename);
-    let mut file = File::create(filepath)?;
+    let mut file = File::create(filepath.clone())?;
     file.write_all(favicon_data)?;
-    Ok(())
+    Ok(filepath)
 }
 
-#[debug_handler]
-pub async fn process_website(website: String) -> impl IntoResponse {
+pub async fn process_website(website: String) -> Result<String, FaviconError> {
     // Fetch and parse the favicon, handling redirects and common locations
     match fetch_and_parse_favicon(website.clone()).await {
         Ok(favicon_data) => {
@@ -39,15 +40,14 @@ pub async fn process_website(website: String) -> impl IntoResponse {
             } else {
                 ".png"
             };
-            if let Err(_) = save_favicon_to_disk(&website, &favicon_data, extension) {
-                return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+            match save_favicon_to_disk(&website, &favicon_data, extension) {
+                Ok(path) => Ok(path.to_str().unwrap().to_string()),
+                Err(_) => Err(FaviconError::CannotSave),
             }
         }
         Err(_) => {
             info!("No valid favicon found for {}", website);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response();
+            return Err(FaviconError::NotFound);
         }
     }
-
-    (StatusCode::CREATED, "Favicon saved to disk").into_response()
 }

@@ -1,4 +1,3 @@
-use axum::{debug_handler, http::StatusCode, response::IntoResponse};
 use reqwest::redirect::Policy;
 use reqwest::Client;
 use scraper::{Html, Selector};
