@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::favicon::fetch_and_parse_favicon;
 use crate::utils::sanitize_website_filename;
@@ -41,12 +41,18 @@ pub async fn process_website(website: String) -> Result<String, FaviconError> {
                 ".png"
             };
             match save_favicon_to_disk(&website, &favicon_data, extension) {
-                Ok(path) => Ok(path.to_str().unwrap().to_string()),
-                Err(_) => Err(FaviconError::CannotSave),
+                Ok(path) => {
+                    info!("Favicon saved for {website}");
+                    Ok(path.to_str().unwrap().to_string())
+                }
+                Err(e) => {
+                    error!("Cannot save favicons: {e:?}");
+                    Err(FaviconError::CannotSave)
+                }
             }
         }
-        Err(_) => {
-            info!("No valid favicon found for {}", website);
+        Err(e) => {
+            error!("No valid favicon found for {website}: {e:?}");
             Err(FaviconError::NotFound)
         }
     }

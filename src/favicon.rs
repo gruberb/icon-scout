@@ -77,8 +77,8 @@ pub async fn fetch_and_parse_favicon(
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     // Create a client with redirect policy to follow all redirects
     let client = Client::builder()
-        .redirect(Policy::limited(10))
-        .timeout(Duration::from_secs(5))
+        .redirect(Policy::limited(15))
+        .timeout(Duration::from_secs(30))
         .build()?;
 
     let mut url = website.to_string();
