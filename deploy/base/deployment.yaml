@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: icon-scout-deployment
+  labels:
+    app: icon-scout
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: icon-scout
+  template:
+    metadata:
+      labels:
+        app: icon-scout
+    spec:
+      containers:
+        - name: icon-scout
+          image: icon-scout:local # Using the locally built Docker image
+          ports:
+            - containerPort: 3000 # The port the app is listening on

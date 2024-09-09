@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: icon-scout-deployment
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: icon-scout
+        image: ghcr.io/gruberb/icon-scout:latest
