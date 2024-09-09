@@ -21,7 +21,7 @@ fn save_favicon_to_disk(
 ) -> Result<PathBuf, std::io::Error> {
     let folder_path = Path::new("favicons");
     if !folder_path.exists() {
-        std::fs::create_dir_all(&folder_path)?;
+        std::fs::create_dir_all(folder_path)?;
     }
 
     let filename = format!("{}{}", sanitize_website_filename(website), extension);
@@ -47,7 +47,7 @@ pub async fn process_website(website: String) -> Result<String, FaviconError> {
         }
         Err(_) => {
             info!("No valid favicon found for {}", website);
-            return Err(FaviconError::NotFound);
+            Err(FaviconError::NotFound)
         }
     }
 }

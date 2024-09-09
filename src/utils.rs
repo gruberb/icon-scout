@@ -16,7 +16,7 @@ pub fn sanitize_website_filename(url: &str) -> String {
 
 pub fn compress_files_to_zip(file_paths: Vec<String>, output_path: &str) -> std::io::Result<()> {
     let path = Path::new(output_path);
-    let file = File::create(&path)?;
+    let file = File::create(path)?;
     let mut zip = ZipWriter::new(file);
 
     for file_path in file_paths {

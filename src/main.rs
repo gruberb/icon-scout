@@ -29,14 +29,12 @@ async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoRespons
     let results = join_all(tasks).await;
 
     let mut file_paths = Vec::new();
-    for result in results {
-        if let Ok(path) = result {
-            file_paths.push(path);
-        }
+    for result in results.into_iter().flatten() {
+        file_paths.push(result);
     }
 
     let output_zip_path = "favicons.zip";
-    if let Err(_) = utils::compress_files_to_zip(file_paths, output_zip_path) {
+    if utils::compress_files_to_zip(file_paths, output_zip_path).is_err() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Failed to create ZIP file",
@@ -65,7 +63,9 @@ async fn main() {
 
     let app = Router::new().route("/favicons", get(get_favicons));
 
-    // run our app with hyper, listening globally on port 3000
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
