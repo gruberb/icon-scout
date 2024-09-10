@@ -45,7 +45,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 ### Running
 
-Either via `cargo run` inside the `icon-scout folder`, or via the binary: `./target/build/release/icon-scout`
+Either via `cargo run` inside the `icon-scout` folder, or via the binary: `./target/build/release/icon-scout`
 
 ### Example
 
