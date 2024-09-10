@@ -12,6 +12,15 @@ Example:
 ]
 ```
 
+or via `curl`:
+
+```bash
+curl -X POST http://localhost:3000/favicons \
+     -H "Content-Type: application/json" \
+     --data-raw '["https://google.com","https://yahoo.com","https://theverge.com"]' \
+     -o favicons.zip
+```
+
 It parses the websites, fetches the favicons for them, *and sends back a ZIP file* as a response.
 
 ### Pre-requirements
