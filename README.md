@@ -1,8 +1,15 @@
 # IconScout
 
-IconScout is a web service which is opening a GET endpoint on `/favicons`, which accepts a `JSON` file with a list of websites.
+IconScout is a web service which is opening a POST endpoint on `/favicons`, which accepts a `JSON` file with a list of websites.
 
-Example:
+```bash
+curl -X POST http://localhost:3000/favicons \
+  -H "Content-Type: application/json" \
+  --data-binary @websites.json \
+  -o favicons.zip
+```
+
+Example JSON:
 ```json
 [
   "https://yahoo.com",
