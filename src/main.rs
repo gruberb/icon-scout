@@ -3,7 +3,7 @@ use axum::{
     extract::Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::post,
     Router,
 };
 use futures::future::join_all;
@@ -61,7 +61,7 @@ async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoRespons
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let app = Router::new().route("/favicons", get(get_favicons));
+    let app = Router::new().route("/favicons", post(get_favicons));
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);

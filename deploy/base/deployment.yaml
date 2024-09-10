@@ -19,3 +19,6 @@ spec:
           image: icon-scout:local # Using the locally built Docker image
           ports:
             - containerPort: 3000 # The port the app is listening on
+          env:
+            - name: RUST_LOG
+              value: debug

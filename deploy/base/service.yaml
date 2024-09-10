@@ -9,4 +9,4 @@ spec:
     - protocol: TCP
       port: 80 # The port the service will expose
       targetPort: 3000 # The port your container listens on
-  type: LoadBalancer # Allows you to access the app from outside Minikube
+  type: LoadBalancer # Allows to access the app from outside minikube
