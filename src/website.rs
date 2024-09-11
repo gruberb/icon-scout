@@ -6,14 +6,15 @@ use std::path::PathBuf;
 use tracing::{error, info};
 
 use crate::favicon::fetch_and_parse_favicon;
+use crate::favicon::Favicon;
 use crate::utils::sanitize_website_filename;
 
 #[derive(Serialize)]
-pub enum FaviconError {
-    NotFound,
-    CannotSave,
+pub enum ProcessWebsiteError {
+    FaviconNotFound,
 }
 
+#[allow(dead_code)]
 fn save_favicon_to_disk(
     website: &str,
     favicon_data: &[u8],
@@ -31,29 +32,16 @@ fn save_favicon_to_disk(
     Ok(filepath)
 }
 
-pub async fn process_website(website: String) -> Result<String, FaviconError> {
+pub async fn process_website(website: String) -> Result<Favicon, ProcessWebsiteError> {
     // Fetch and parse the favicon, handling redirects and common locations
     match fetch_and_parse_favicon(website.clone()).await {
-        Ok(favicon_data) => {
-            let extension = if website.ends_with(".svg") {
-                ".svg"
-            } else {
-                ".png"
-            };
-            match save_favicon_to_disk(&website, &favicon_data, extension) {
-                Ok(path) => {
-                    info!("Favicon saved for {website}");
-                    Ok(path.to_str().unwrap().to_string())
-                }
-                Err(e) => {
-                    error!("Cannot save favicons: {e:?}");
-                    Err(FaviconError::CannotSave)
-                }
-            }
+        Ok(favicon) => {
+            info!("Favicon found for {website}");
+            Ok(favicon)
         }
         Err(e) => {
             error!("No valid favicon found for {website}: {e:?}");
-            Err(FaviconError::NotFound)
+            Err(ProcessWebsiteError::FaviconNotFound)
         }
     }
 }

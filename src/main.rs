@@ -1,23 +1,22 @@
-use axum::{
-    debug_handler,
-    extract::Json,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    routing::post,
-    Router,
-};
+use axum::{extract::Json, http::StatusCode, response::IntoResponse, routing::post, Router};
 use futures::future::join_all;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use website::process_website;
 
 mod favicon;
+mod mime_type;
 mod utils;
 mod website;
 
 #[derive(Deserialize)]
 struct WebsiteList(Vec<String>);
 
-#[debug_handler]
+#[derive(Serialize)]
+struct Response {
+    url: String,
+    data_uri: String,
+}
+
 async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoResponse {
     let tasks: Vec<_> = website_list
         .0
@@ -28,35 +27,23 @@ async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoRespons
     // Run all tasks concurrently using join_all
     let results = join_all(tasks).await;
 
-    let mut file_paths = Vec::new();
-    for result in results.into_iter().flatten() {
-        file_paths.push(result);
-    }
-
-    let output_zip_path = "favicons.zip";
-    if utils::compress_files_to_zip(file_paths, output_zip_path).is_err() {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to create ZIP file",
-        )
-            .into_response();
-    }
-
-    // Return the ZIP file as a response
-    let file = match tokio::fs::read(output_zip_path).await {
-        Ok(contents) => contents,
-        Err(_) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read ZIP file").into_response()
+    let mut favicon_data_uris = Vec::new();
+    for (website, result) in website_list.0.iter().zip(results.into_iter()) {
+        if let Ok(favicon) = result {
+            match mime_type::generate_data_uri(&favicon) {
+                Some(data_uri) => {
+                    favicon_data_uris.push(Response {
+                        url: website.clone(),
+                        data_uri,
+                    });
+                }
+                None => continue,
+            }
         }
-    };
+    }
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/zip")
-        .body(file.into())
-        .unwrap()
+    (StatusCode::OK, Json(favicon_data_uris))
 }
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
