@@ -1,12 +1,11 @@
 # IconScout
 
-IconScout is a web service which is opening a POST endpoint on `/favicons`, which accepts a `JSON` file with a list of websites.
+IconScout is a web service which is opening a POST endpoint on `/favicons`, which accepts a `JSON` file with a list of websites
 
 ```bash
 curl -X POST http://localhost:3000/favicons \
   -H "Content-Type: application/json" \
-  --data-binary @websites.json \
-  -o favicons.zip
+  --data-binary @websites.json
 ```
 
 Example JSON:
@@ -25,10 +24,20 @@ or via `curl`:
 curl -X POST http://localhost:3000/favicons \
      -H "Content-Type: application/json" \
      --data-raw '["https://google.com","https://yahoo.com","https://theverge.com"]' \
-     -o favicons.zip
 ```
 
-It parses the websites, fetches the favicons for them, *and sends back a ZIP file* as a response.
+It parses the websites, fetches the favicons for them, *and sends back a list of data URIs* as a response:
+
+```json
+[
+  {
+    "url":"https://mozilla.org",
+    "data_uri":"data:image/x-icon;base64,AAABAAMAMDA...="
+  }
+]
+```
+
+The `data_uri` represents the `favicon` of the given website URL.
 
 ### Pre-requirements
 
