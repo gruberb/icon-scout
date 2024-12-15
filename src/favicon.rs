@@ -130,7 +130,10 @@ pub(crate) async fn fetch_and_parse_favicon(
 
     let response = client
         .get(&url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Version/14.1.2 Safari/537.36",
+        )
         .send()
         .await
         .map_err(|err| ParseFaviconError::Other(Box::new(err)))?;

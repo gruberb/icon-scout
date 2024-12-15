@@ -9,7 +9,6 @@ use std::io::Write;
 use std::path::Path;
 
 pub async fn save_favicon(
-    website: &str,
     favicon_data: &[u8],
     mime_type: impl AsRef<str> + 'static,
 ) -> Result<String, Box<dyn std::error::Error>> {
@@ -20,22 +19,19 @@ pub async fn save_favicon(
             let bucket_name = "icon-scout-favicons"; // Replace with your GCS bucket name
             save_favicon_to_gcs(bucket_name, favicon_data, mime_type.as_ref()).await
         }
-        _ => save_favicon_to_disk(website, favicon_data, mime_type.as_ref()),
+        _ => save_favicon_to_disk(favicon_data),
     }
 }
 
-fn save_favicon_to_disk(
-    website: &str,
-    favicon_data: &[u8],
-    mime_type: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+fn save_favicon_to_disk(favicon_data: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
     let folder_path = Path::new("favicons");
     if !folder_path.exists() {
         std::fs::create_dir_all(folder_path)?;
     }
 
-    let extension = get_extension(mime_type);
-    let filename = format!("{}{}", sanitize_website_filename(website), extension);
+    // Compute the hash of the favicon content
+    let hash = Sha256::digest(favicon_data);
+    let filename = format!("{:x}", hash);
     let filepath = folder_path.join(filename);
 
     let mut file = File::create(filepath.clone())?;
@@ -98,22 +94,4 @@ pub fn decode_image_metadata(data: &[u8]) -> (Option<u32>, Option<u32>) {
         }
     }
     (None, None)
-}
-
-pub fn sanitize_website_filename(url: &str) -> String {
-    url.replace("https://", "")
-        .replace("http://", "")
-        .replace("/", "_")
-}
-
-fn get_extension(mime_type: &str) -> &str {
-    match mime_type {
-        "image/png" => ".png",
-        "image/svg+xml" => ".svg",
-        "image/x-icon" | "image/vnd.microsoft.icon" => ".ico",
-        "image/gif" => ".gif",
-        "image/jpeg" => ".jpg",
-        "image/webp" => ".webp",
-        _ => ".bin",
-    }
 }

@@ -1,7 +1,6 @@
 use crate::favicon::fetch_and_parse_favicon;
 use crate::utils::{decode_image_metadata, save_favicon};
 use serde::Serialize;
-use std::borrow::Cow;
 use tracing::{error, info};
 
 #[derive(Serialize)]
@@ -28,7 +27,33 @@ pub async fn process_website(website: String) -> Result<ProcessWebsiteResult, Pr
     info!("Processing website: {}", website);
     let mut attempted_urls = Vec::new();
 
-    // Try the common favicon location first
+    // Step 1: Try to fetch and parse favicons from the HTML
+    match fetch_and_parse_favicon(website.clone()).await {
+        Ok((favicon, mut favicon_attempts)) => {
+            attempted_urls.append(&mut favicon_attempts);
+            let mime_type = favicon.mime_type.as_str().to_string();
+            let (width, height) = decode_image_metadata(&favicon.data);
+            let byte_size = favicon.data.len();
+
+            let path = save_favicon(&favicon.data, mime_type.clone())
+                .await
+                .map_err(|e| ProcessWebsiteError::SaveError(e.to_string()))?;
+
+            return Ok(ProcessWebsiteResult::Success {
+                path,
+                mime_type,
+                attempted_urls,
+                width,
+                height,
+                byte_size,
+            });
+        }
+        Err(e) => {
+            error!("Failed to fetch favicon from HTML for {}: {:?}", website, e);
+        }
+    }
+
+    // Step 2: Fallback to the common `/favicon.ico` location
     let common_favicon_url = if website.starts_with("http") {
         format!("{}/favicon.ico", website.trim_end_matches('/'))
     } else {
@@ -41,7 +66,7 @@ pub async fn process_website(website: String) -> Result<ProcessWebsiteResult, Pr
         let (width, height) = decode_image_metadata(&data);
         let byte_size = data.len();
 
-        let path = save_favicon(&website, &data, "image/x-icon")
+        let path = save_favicon(&data, "image/x-icon")
             .await
             .map_err(|e| ProcessWebsiteError::SaveError(e.to_string()))?;
 
@@ -55,31 +80,6 @@ pub async fn process_website(website: String) -> Result<ProcessWebsiteResult, Pr
         });
     }
 
-    // If not found at common location, attempt to fetch and parse from HTML
-    match fetch_and_parse_favicon(website.clone()).await {
-        Ok((favicon, mut favicon_attempts)) => {
-            attempted_urls.append(&mut favicon_attempts);
-
-            let (width, height) = decode_image_metadata(&favicon.data);
-            let byte_size = favicon.data.len();
-            let mime_type = Cow::Owned(favicon.mime_type.as_str().to_string());
-
-            let path = save_favicon(&website, &favicon.data, mime_type)
-                .await
-                .map_err(|e| ProcessWebsiteError::SaveError(e.to_string()))?;
-
-            Ok(ProcessWebsiteResult::Success {
-                path,
-                mime_type: favicon.mime_type.as_str().to_string(),
-                attempted_urls,
-                width,
-                height,
-                byte_size,
-            })
-        }
-        Err(e) => {
-            error!("No valid favicon found for {}: {:?}", website, e);
-            Ok(ProcessWebsiteResult::Failure { attempted_urls })
-        }
-    }
+    // No favicon found
+    Ok(ProcessWebsiteResult::Failure { attempted_urls })
 }
