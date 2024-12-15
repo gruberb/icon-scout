@@ -103,7 +103,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(health_check))
-        .route("/favicons", post(get_favicons))
+        .route("/api/favicons", post(get_favicons))
         .layer(cors);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
