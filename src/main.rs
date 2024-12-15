@@ -1,7 +1,9 @@
+use axum::http::Method;
 use axum::{extract::Json, http::StatusCode, response::IntoResponse, routing::post, Router};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
-use website::process_website;
+use tower_http::cors::{Any, CorsLayer};
+use website::{process_website, ProcessWebsiteResult};
 
 mod favicon;
 mod mime_type;
@@ -12,9 +14,15 @@ mod website;
 struct WebsiteList(Vec<String>);
 
 #[derive(Serialize)]
-struct Response {
+struct FaviconResult {
     url: String,
-    data_uri: String,
+    status: String,
+    path: Option<String>,
+    attempted_urls: Option<Vec<String>>,
+    width: Option<u32>,
+    height: Option<u32>,
+    byte_size: Option<usize>,
+    mime_type: Option<String>,
 }
 
 async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoResponse {
@@ -24,31 +32,68 @@ async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoRespons
         .map(|website| process_website(website.to_string()))
         .collect();
 
-    // Run all tasks concurrently using join_all
     let results = join_all(tasks).await;
 
-    let mut favicon_data_uris = Vec::new();
-    for (website, result) in website_list.0.iter().zip(results.into_iter()) {
-        if let Ok(favicon) = result {
-            match mime_type::generate_data_uri(&favicon) {
-                Some(data_uri) => {
-                    favicon_data_uris.push(Response {
-                        url: website.clone(),
-                        data_uri,
-                    });
-                }
-                None => continue,
-            }
-        }
-    }
+    let favicon_results: Vec<FaviconResult> = website_list
+        .0
+        .iter()
+        .zip(results.into_iter())
+        .map(|(website, result)| match result {
+            Ok(ProcessWebsiteResult::Success {
+                path,
+                mime_type,
+                attempted_urls,
+                width,
+                height,
+                byte_size,
+            }) => FaviconResult {
+                url: website.clone(),
+                status: "Success".to_string(),
+                path: Some(path.to_string_lossy().to_string()),
+                attempted_urls: Some(attempted_urls),
+                width,
+                height,
+                byte_size: Some(byte_size),
+                mime_type: Some(mime_type),
+            },
+            Ok(ProcessWebsiteResult::Failure { attempted_urls }) => FaviconResult {
+                url: website.clone(),
+                status: "Failed".to_string(),
+                path: None,
+                attempted_urls: Some(attempted_urls),
+                width: None,
+                height: None,
+                byte_size: None,
+                mime_type: None,
+            },
+            Err(_) => FaviconResult {
+                url: website.clone(),
+                status: "Error".to_string(),
+                path: None,
+                attempted_urls: None,
+                width: None,
+                height: None,
+                byte_size: None,
+                mime_type: None,
+            },
+        })
+        .collect();
 
-    (StatusCode::OK, Json(favicon_data_uris))
+    (StatusCode::OK, axum::Json(favicon_results))
 }
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let app = Router::new().route("/favicons", post(get_favicons));
+    let cors = CorsLayer::new()
+        .allow_origin(Any) // Allow any origin; use specific origins in production
+        .allow_methods([Method::POST])
+        .allow_headers(Any);
+
+    let app = Router::new()
+        .route("/favicons", post(get_favicons))
+        .layer(cors);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);
