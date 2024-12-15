@@ -1,5 +1,11 @@
 use axum::http::Method;
-use axum::{extract::Json, http::StatusCode, response::IntoResponse, routing::post, Router};
+use axum::{
+    extract::Json,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Router,
+};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
@@ -82,16 +88,21 @@ async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoRespons
     (StatusCode::OK, axum::Json(favicon_results))
 }
 
+async fn health_check() -> &'static str {
+    "OK"
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
     let cors = CorsLayer::new()
-        .allow_origin(Any) // Allow any origin; use specific origins in production
+        .allow_origin(Any)
         .allow_methods([Method::POST])
         .allow_headers(Any);
 
     let app = Router::new()
+        .route("/", get(health_check))
         .route("/favicons", post(get_favicons))
         .layer(cors);
 
