@@ -14,7 +14,7 @@ pub async fn save_favicon(
     mime_type: impl AsRef<str> + 'static,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let storage_mode = env::var("STORAGE_MODE").unwrap_or_else(|_| "local".to_string());
-
+    tracing::info!("Storage Mode: {storage_mode}");
     match storage_mode.as_str() {
         "gcs" => {
             let bucket_name = "icon-scout-favicons"; // Replace with your GCS bucket name
