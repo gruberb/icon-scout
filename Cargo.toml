@@ -22,3 +22,5 @@ zip = "2.2.0"
 image = "0.24"
 sha2 = "0.10"
 tower-http = { version = "0.6", features = ["cors"] }
+google-cloud-storage = "0.23"
+google-cloud-auth = "0.17"

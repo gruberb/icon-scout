@@ -55,7 +55,7 @@ async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoRespons
             }) => FaviconResult {
                 url: website.clone(),
                 status: "Success".to_string(),
-                path: Some(path.to_string_lossy().to_string()),
+                path: Some(path),
                 attempted_urls: Some(attempted_urls),
                 width,
                 height,
@@ -108,7 +108,7 @@ async fn main() {
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);
-
+    tracing::info!("Starting server at {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

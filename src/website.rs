@@ -1,22 +1,18 @@
-use serde::Serialize;
-use std::path::PathBuf;
-use tracing::{error, info};
-
 use crate::favicon::fetch_and_parse_favicon;
-use crate::favicon::Favicon;
-use crate::mime_type::MimeType;
-use crate::utils::save_favicon_to_disk;
-use image::io::Reader as ImageReader;
+use crate::utils::{decode_image_metadata, save_favicon};
+use serde::Serialize;
+use std::borrow::Cow;
+use tracing::{error, info};
 
 #[derive(Serialize)]
 pub enum ProcessWebsiteError {
-    FaviconNotFound,
+    SaveError(String),
 }
 
 #[derive(Serialize)]
 pub enum ProcessWebsiteResult {
     Success {
-        path: PathBuf,
+        path: String,
         mime_type: String,
         attempted_urls: Vec<String>,
         width: Option<u32>,
@@ -29,6 +25,7 @@ pub enum ProcessWebsiteResult {
 }
 
 pub async fn process_website(website: String) -> Result<ProcessWebsiteResult, ProcessWebsiteError> {
+    info!("Processing website: {}", website);
     let mut attempted_urls = Vec::new();
 
     // Try the common favicon location first
@@ -43,11 +40,14 @@ pub async fn process_website(website: String) -> Result<ProcessWebsiteResult, Pr
         info!("Favicon found at common location for {}", website);
         let (width, height) = decode_image_metadata(&data);
         let byte_size = data.len();
-        let path = save_favicon_to_disk(&data, ".ico")
-            .map_err(|_| ProcessWebsiteError::FaviconNotFound)?;
+
+        let path = save_favicon(&website, &data, "image/x-icon")
+            .await
+            .map_err(|e| ProcessWebsiteError::SaveError(e.to_string()))?;
+
         return Ok(ProcessWebsiteResult::Success {
             path,
-            mime_type: MimeType::ImageXIcon.as_str().to_string(),
+            mime_type: "image/x-icon".to_string(),
             attempted_urls,
             width,
             height,
@@ -57,28 +57,20 @@ pub async fn process_website(website: String) -> Result<ProcessWebsiteResult, Pr
 
     // If not found at common location, attempt to fetch and parse from HTML
     match fetch_and_parse_favicon(website.clone()).await {
-        Ok((Favicon { data, mime_type }, mut favicon_attempts)) => {
-            // Record all attempts from fetch_and_parse_favicon
+        Ok((favicon, mut favicon_attempts)) => {
             attempted_urls.append(&mut favicon_attempts);
 
-            // Extract metadata
-            let (width, height) = decode_image_metadata(&data);
-            let byte_size = data.len();
-            let extension = match mime_type {
-                MimeType::ImagePng => ".png",
-                MimeType::ImageSvgXml => ".svg",
-                MimeType::ImageXIcon | MimeType::ImageVndMicrosoftIcon => ".ico",
-                MimeType::ImageGif => ".gif",
-                MimeType::ImageJpeg => ".jpg",
-                MimeType::ImageWebp => ".webp",
-                MimeType::Unknown(_) => ".bin",
-            };
+            let (width, height) = decode_image_metadata(&favicon.data);
+            let byte_size = favicon.data.len();
+            let mime_type = Cow::Owned(favicon.mime_type.as_str().to_string());
 
-            let path = save_favicon_to_disk(&data, extension)
-                .map_err(|_| ProcessWebsiteError::FaviconNotFound)?;
+            let path = save_favicon(&website, &favicon.data, mime_type)
+                .await
+                .map_err(|e| ProcessWebsiteError::SaveError(e.to_string()))?;
+
             Ok(ProcessWebsiteResult::Success {
                 path,
-                mime_type: mime_type.as_str().to_string(),
+                mime_type: favicon.mime_type.as_str().to_string(),
                 attempted_urls,
                 width,
                 height,
@@ -87,18 +79,7 @@ pub async fn process_website(website: String) -> Result<ProcessWebsiteResult, Pr
         }
         Err(e) => {
             error!("No valid favicon found for {}: {:?}", website, e);
-            // Failure: return attempted URLs
             Ok(ProcessWebsiteResult::Failure { attempted_urls })
         }
     }
-}
-
-// Attempt to decode image metadata: width and height
-fn decode_image_metadata(data: &[u8]) -> (Option<u32>, Option<u32>) {
-    if let Ok(reader) = ImageReader::new(std::io::Cursor::new(data)).with_guessed_format() {
-        if let Ok(img) = reader.decode() {
-            return (Some(img.width()), Some(img.height()));
-        }
-    }
-    (None, None)
 }
