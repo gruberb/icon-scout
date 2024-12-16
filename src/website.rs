@@ -1,6 +1,6 @@
 use crate::favicon::{fetch_and_parse_favicon, FaviconLocation};
 use crate::utils::{decode_image_metadata, save_favicon};
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
+use reqwest::redirect::Policy;
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
@@ -30,23 +30,23 @@ pub enum ProcessWebsiteResult {
 
 async fn fetch_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = Client::builder()
+        .redirect(Policy::limited(15)) // Add redirect handling
         .timeout(Duration::from_secs(30))
-        .use_rustls_tls()
-        .default_headers({
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                USER_AGENT,
-                HeaderValue::from_static(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
-                ),
-            );
-            headers
-        })
         .build()
         .map_err(|e| format!("Failed to build client: {}", e))?;
 
+    let url = if url.starts_with("http") {
+        url.to_string()
+    } else {
+        format!("https://{}", url)
+    };
+
     let response = client
-        .get(url)
+        .get(&url)
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Version/14.1.2 Safari/537.36",
+        )
         .send()
         .await
         .map_err(|e| format!("Failed to send request: {}", e))?;
