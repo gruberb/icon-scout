@@ -31,6 +31,7 @@ pub enum ProcessWebsiteResult {
 async fn fetch_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = Client::builder()
         .timeout(Duration::from_secs(30))
+        .danger_accept_invalid_certs(false) // Explicitly require valid certs
         .default_headers({
             let mut headers = HeaderMap::new();
             headers.insert(
@@ -41,9 +42,14 @@ async fn fetch_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
             );
             headers
         })
-        .build()?;
+        .build()
+        .map_err(|e| format!("Failed to build client: {}", e))?;
 
-    let response = client.get(url).send().await?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send request: {}", e))?;
 
     if !response.status().is_success() {
         return Err(format!(
@@ -54,7 +60,10 @@ async fn fetch_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
         .into());
     }
 
-    let html = response.text().await?;
+    let html = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to get response text: {}", e))?;
     Ok(html)
 }
 
