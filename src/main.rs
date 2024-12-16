@@ -19,7 +19,7 @@ mod website;
 #[derive(Deserialize)]
 struct WebsiteList(Vec<String>);
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 struct FaviconResult {
     url: String,
     status: String,
@@ -29,6 +29,54 @@ struct FaviconResult {
     height: Option<u32>,
     byte_size: Option<usize>,
     mime_type: Option<String>,
+}
+
+#[derive(Serialize)]
+struct ManifestDomain {
+    domain: String,
+    url: String,
+    title: String,
+    icon: String,
+}
+
+#[derive(Serialize)]
+struct Manifest {
+    domains: Vec<ManifestDomain>,
+}
+
+#[axum::debug_handler]
+async fn generate_manifest(
+    Json(results): Json<Vec<FaviconResult>>,
+) -> Result<Json<Manifest>, StatusCode> {
+    let domains: Vec<ManifestDomain> = results
+        .into_iter()
+        .filter(|result| result.status == "Success" && result.path.is_some())
+        .map(|result| {
+            let domain = result
+                .url
+                .replace("https://", "")
+                .replace("http://", "")
+                .split('.')
+                .next()
+                .unwrap_or("")
+                .to_string();
+
+            ManifestDomain {
+                domain: domain.clone(),
+                url: result.url,
+                title: domain
+                    .chars()
+                    .next()
+                    .unwrap_or('_')
+                    .to_uppercase()
+                    .chain(domain.chars().skip(1))
+                    .collect(),
+                icon: result.path.unwrap_or_default(),
+            }
+        })
+        .collect();
+
+    Ok(Json(Manifest { domains }))
 }
 
 async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoResponse {
@@ -104,6 +152,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(health_check))
         .route("/api/favicons", post(get_favicons))
+        .route("/api/manifest", post(generate_manifest))
         .layer(cors);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
