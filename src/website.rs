@@ -31,7 +31,7 @@ pub enum ProcessWebsiteResult {
 async fn fetch_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = Client::builder()
         .timeout(Duration::from_secs(30))
-        .danger_accept_invalid_certs(false) // Explicitly require valid certs
+        .use_rustls_tls()
         .default_headers({
             let mut headers = HeaderMap::new();
             headers.insert(
