@@ -16,7 +16,7 @@ pub async fn save_favicon(
     tracing::info!("Storage Mode: {storage_mode}");
     match storage_mode.as_str() {
         "gcs" => {
-            let bucket_name = "icon-scout-favicons"; // Replace with your GCS bucket name
+            let bucket_name = "icon-scout-favicons";
             save_favicon_to_gcs(bucket_name, favicon_data, mime_type.as_ref()).await
         }
         _ => save_favicon_to_disk(favicon_data),

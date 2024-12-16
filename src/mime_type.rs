@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub(crate) enum MimeType {
     ImagePng,
     ImageSvgXml,

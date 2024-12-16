@@ -7,11 +7,13 @@ use url::Url;
 
 use crate::mime_type::{self, MimeType};
 
+#[derive(Clone)]
 pub(crate) struct FaviconLocation {
     pub url: String,
     pub mime_type: MimeType,
 }
 
+#[derive(Clone)]
 pub(crate) struct Favicon {
     pub(crate) data: Vec<u8>,
     pub(crate) mime_type: MimeType,
@@ -93,13 +95,16 @@ pub fn parse_favicon_url(html: &str, base_url: Url) -> Option<FaviconLocation> {
         .next()
 }
 
-pub async fn check_for_favicon(icon_url: String) -> Option<Vec<u8>> {
+pub(crate) async fn check_for_favicon(icon_url: String) -> Option<Vec<u8>> {
     let client = Client::new();
     info!("Checking: {icon_url}");
 
     let response = client
         .get(&icon_url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Version/14.1.2 Safari/537.36",
+        )
         .send()
         .await
         .ok()?;
@@ -113,6 +118,7 @@ pub async fn check_for_favicon(icon_url: String) -> Option<Vec<u8>> {
 }
 
 // Now returns (Favicon, Vec<String>) so we can track attempted URLs internally
+#[allow(dead_code)]
 pub(crate) async fn fetch_and_parse_favicon(
     website: String,
 ) -> Result<(Favicon, Vec<String>), ParseFaviconError> {
