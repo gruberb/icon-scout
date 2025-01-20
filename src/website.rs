@@ -4,7 +4,6 @@ use reqwest::redirect::Policy;
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
-use std::time::Duration;
 use tracing::{error, info};
 use url::Url;
 
@@ -30,8 +29,7 @@ pub enum ProcessWebsiteResult {
 
 async fn fetch_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = Client::builder()
-        .redirect(Policy::limited(15)) // Add redirect handling
-        .timeout(Duration::from_secs(30))
+        .redirect(Policy::limited(15))
         .build()
         .map_err(|e| format!("Failed to build client: {}", e))?;
 
@@ -84,7 +82,6 @@ pub async fn fetch_and_parse_manifest(
     manifest_url: &str,
 ) -> Result<Vec<FaviconLocation>, ProcessWebsiteError> {
     let client = Client::builder()
-        .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| ProcessWebsiteError::SaveError(e.to_string()))?;
 
