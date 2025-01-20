@@ -1,7 +1,6 @@
 use reqwest::redirect::Policy;
 use reqwest::Client;
 use scraper::{Html, Selector};
-use std::time::Duration;
 use tracing::info;
 use url::Url;
 
@@ -124,7 +123,6 @@ pub(crate) async fn fetch_and_parse_favicon(
 ) -> Result<(Favicon, Vec<String>), ParseFaviconError> {
     let client = Client::builder()
         .redirect(Policy::limited(15))
-        .timeout(Duration::from_secs(30))
         .build()
         .map_err(|err| ParseFaviconError::Other(Box::new(err)))?;
 
