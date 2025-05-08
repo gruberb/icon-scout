@@ -2,10 +2,10 @@ use axum::http::Method;
 use axum::{
     extract::Json,
     http::StatusCode,
-    response::IntoResponse,
     routing::{get, post},
     Router,
 };
+
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
@@ -24,7 +24,8 @@ struct FaviconResult {
     url: String,
     status: String,
     path: Option<String>,
-    attempted_urls: Option<Vec<String>>,
+    attempted_urls: Option<Vec<website::FaviconAttemptResult>>,
+    error_reasons: Option<Vec<String>>,
     width: Option<u32>,
     height: Option<u32>,
     byte_size: Option<usize>,
@@ -79,7 +80,11 @@ async fn generate_manifest(
     Ok(Json(Manifest { domains }))
 }
 
-async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoResponse {
+#[axum::debug_handler]
+async fn get_favicons(
+    Json(website_list): Json<WebsiteList>,
+) -> Result<Json<Vec<FaviconResult>>, StatusCode> {
+    // Change the return type to impl IntoResponse
     let tasks: Vec<_> = website_list
         .0
         .iter()
@@ -105,35 +110,87 @@ async fn get_favicons(Json(website_list): Json<WebsiteList>) -> impl IntoRespons
                 status: "Success".to_string(),
                 path: Some(path),
                 attempted_urls: Some(attempted_urls),
+                error_reasons: None,
                 width,
                 height,
                 byte_size: Some(byte_size),
                 mime_type: Some(mime_type),
             },
-            Ok(ProcessWebsiteResult::Failure { attempted_urls }) => FaviconResult {
+            Ok(ProcessWebsiteResult::Failure {
+                attempted_urls,
+                reasons,
+            }) => FaviconResult {
                 url: website.clone(),
                 status: "Failed".to_string(),
                 path: None,
                 attempted_urls: Some(attempted_urls),
+                error_reasons: Some(reasons),
                 width: None,
                 height: None,
                 byte_size: None,
                 mime_type: None,
             },
-            Err(_) => FaviconResult {
-                url: website.clone(),
-                status: "Error".to_string(),
-                path: None,
-                attempted_urls: None,
-                width: None,
-                height: None,
-                byte_size: None,
-                mime_type: None,
-            },
+            Err(e) => {
+                let error_message = match e {
+                    website::ProcessWebsiteError::SaveError(msg) => {
+                        format!("System error: Failed to save favicon to storage: {}. Please check system permissions and available disk space.", msg)
+                    }
+                    website::ProcessWebsiteError::NetworkError(msg) => {
+                        format!("Network error: {}. Please check your internet connection and verify the website is accessible. The server may be down or unreachable.", msg)
+                    }
+                    website::ProcessWebsiteError::ParseError(msg) => {
+                        format!("Parse error: {}. The website's HTML could not be properly parsed. The site may have an unusual structure or invalid markup.", msg)
+                    }
+                    website::ProcessWebsiteError::HttpError { status, url } => {
+                        let status_explanation = match status {
+                            404 => "page or resource not found",
+                            500 => "internal server error",
+                            502 => "bad gateway",
+                            503 => "service unavailable",
+                            504 => "gateway timeout",
+                            _ => "server returned an error",
+                        };
+                        format!("HTTP error {} ({}): Could not retrieve favicon from {}. The server might be experiencing issues or the resource might not exist.", status, status_explanation, url)
+                    }
+                    website::ProcessWebsiteError::ForbiddenAccess(url) => {
+                        format!("Access forbidden (403): The server at {} actively refused access to the favicon. This website may implement security measures that prevent favicon scraping or may require authentication.", url)
+                    }
+                    website::ProcessWebsiteError::TooManyRequests(url) => {
+                        format!("Rate limited (429): The server at {} has rate-limiting protection in place and has temporarily blocked our requests. Please try again later or reduce the frequency of requests to this domain.", url)
+                    }
+                    website::ProcessWebsiteError::MalformedUrl { url, error } => {
+                        format!("Invalid URL format: The URL '{}' could not be processed because: {}. Please check for typos and ensure the URL is correctly formatted, including the protocol (http:// or https://).", url, error)
+                    }
+                    website::ProcessWebsiteError::ManifestParsingError { url, error } => {
+                        format!("Web app manifest error: Could not parse the manifest file at {}. Error details: {}. The site may have an invalid or non-standard web app manifest.", url, error)
+                    }
+                    website::ProcessWebsiteError::InvalidImageData { url } => {
+                        format!("Invalid image data: The file at {} appears to be corrupted or is not a valid image format. The server may be returning a non-image response like an error page or placeholder.", url)
+                    }
+                    website::ProcessWebsiteError::Timeout(url) => {
+                        format!("Connection timeout: The request to {} took too long to complete and was aborted. This could be due to a slow server response, network congestion, or server-side processing delays.", url)
+                    }
+                    website::ProcessWebsiteError::EmptyResponse(url) => {
+                        format!("Empty response: The server at {} returned an empty response. The favicon file may exist but contain no data, or the server might be misconfigured.", url)
+                    }
+                };
+                FaviconResult {
+                    url: website.clone(),
+                    status: "Error".to_string(),
+                    path: None,
+                    attempted_urls: None,
+                    error_reasons: Some(vec![error_message]),
+                    width: None,
+                    height: None,
+                    byte_size: None,
+                    mime_type: None,
+                }
+            }
         })
         .collect();
 
-    (StatusCode::OK, axum::Json(favicon_results))
+    // Return just the Json type here
+    Ok(Json(favicon_results))
 }
 
 async fn health_check() -> &'static str {
